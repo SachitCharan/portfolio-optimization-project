@@ -1,0 +1,161 @@
+project:
+  name: portfolio-optimization-project
+  random_seed: 42
+
+paths:
+  price_cache: data/adjusted_close_prices.csv
+  figures_directory: outputs/figures
+  tables_directory: outputs/tables
+  performance_table: outputs/tables/performance_summary.csv
+
+data:
+  start_date: "2015-01-01"
+  end_date: null
+  benchmark_ticker: SPY
+  price_field: Close
+  auto_adjust: true
+  cache_max_age_hours: 24
+  force_refresh: false
+  download:
+    threads: false
+    show_progress: false
+    timeout_seconds: 30
+    retry_attempts: 3
+    retry_delay_seconds: 2
+  validation:
+    minimum_observations: 2000
+    maximum_missing_fraction_per_ticker: 0.01
+    start_date_tolerance_days: 7
+    end_date_tolerance_days: 7
+    missing_data_method: drop_rows
+
+universe:
+  expected_sector_count: 7
+  tickers_per_sector: 7
+  expected_ticker_count: 49
+  sectors:
+    Technology:
+      - AAPL
+      - MSFT
+      - NVDA
+      - AVGO
+      - ORCL
+      - CRM
+      - ADBE
+    Financials:
+      - JPM
+      - BAC
+      - WFC
+      - GS
+      - MS
+      - BLK
+      - AXP
+    Healthcare:
+      - LLY
+      - JNJ
+      - ABBV
+      - UNH
+      - MRK
+      - TMO
+      - ABT
+    Consumer Discretionary:
+      - AMZN
+      - TSLA
+      - HD
+      - MCD
+      - LOW
+      - NKE
+      - SBUX
+    Energy:
+      - XOM
+      - CVX
+      - COP
+      - EOG
+      - SLB
+      - MPC
+      - PSX
+    Industrials:
+      - CAT
+      - RTX
+      - HON
+      - UPS
+      - BA
+      - DE
+      - LMT
+    Consumer Staples:
+      - WMT
+      - COST
+      - PG
+      - KO
+      - PEP
+      - PM
+      - MDLZ
+
+returns:
+  method: simple
+  periods_per_year: 252
+
+covariance:
+  estimators:
+    - sample
+    - ledoit_wolf
+  optimization_estimator: ledoit_wolf
+
+optimization:
+  risk_free_rate: 0.03
+  allow_shorting: false
+  weight_bounds:
+    minimum: 0.0
+    maximum: 1.0
+  sector_cap: null
+  initial_weights: equal
+  solver:
+    method: SLSQP
+    maximum_iterations: 2000
+    function_tolerance: 1.0e-9
+    constraint_tolerance: 1.0e-8
+
+frontier:
+  number_of_points: 50
+  target_return_range: asset_mean_range
+  skip_failed_targets: true
+
+monte_carlo:
+  number_of_portfolios: 25000
+  weight_distribution: dirichlet
+  dirichlet_alpha: 1.0
+
+backtest:
+  strategy: maximum_sharpe
+  covariance_estimator: ledoit_wolf
+  training_window_days: 756
+  holding_period_days: 63
+  rebalance_frequency: quarterly
+  transaction_cost_bps: 0.0
+  benchmarks:
+    - equal_weight
+    - SPY
+
+metrics:
+  include:
+    - cagr
+    - annualized_volatility
+    - sharpe_ratio
+    - maximum_drawdown
+    - calmar_ratio
+    - turnover
+
+plots:
+  style: seaborn-v0_8-whitegrid
+  figure_width_inches: 10
+  figure_height_inches: 6
+  dpi: 300
+  monte_carlo_point_size: 6
+  monte_carlo_alpha: 0.35
+  line_width: 2.0
+  color_map: viridis
+
+validation:
+  weight_sum_tolerance: 1.0e-8
+  covariance_symmetry_tolerance: 1.0e-10
+  covariance_psd_tolerance: -1.0e-10
