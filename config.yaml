@@ -123,8 +123,10 @@ optimization:
 
 frontier:
   number_of_points: 50
-  target_return_range: asset_mean_range
+  target_return_range: minimum_variance_to_maximum_asset
   skip_failed_targets: true
+  monotonicity_tolerance: 1.0e-7
+  convexity_tolerance: 1.0e-6
 
 monte_carlo:
   number_of_portfolios: 25000
