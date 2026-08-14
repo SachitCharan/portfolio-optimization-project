@@ -1,0 +1,18 @@
+# Project-specific Python environment
+.venv/
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Local configuration and editor metadata
+.env
+.vscode/
+.idea/
+.DS_Store
+
+# Downloaded market data
+data/*
+!data/.gitkeep
