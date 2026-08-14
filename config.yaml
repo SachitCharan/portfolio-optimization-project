@@ -93,13 +93,19 @@ universe:
 
 returns:
   method: simple
+  expected_return_estimator: historical_mean
   periods_per_year: 252
+  standard_deviation_ddof: 1
 
 covariance:
   estimators:
     - sample
     - ledoit_wolf
   optimization_estimator: ledoit_wolf
+  sample_ddof: 1
+  ledoit_wolf:
+    assume_centered: false
+    store_precision: false
 
 optimization:
   risk_free_rate: 0.03
