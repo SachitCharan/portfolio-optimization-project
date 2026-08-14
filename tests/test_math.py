@@ -18,7 +18,7 @@ from src.covariance import (
 )
 from src.data import get_universe_tickers, load_config, load_price_data
 from src.frontier import FrontierResult, trace_efficient_frontier
-from src.metrics import build_performance_summary
+from src.metrics import build_cost_scenario_results, build_performance_summary
 from src.montecarlo import MonteCarloResult, run_monte_carlo
 from src.optimize import (
     load_optimization_inputs,
@@ -148,9 +148,11 @@ def test_random_portfolios_do_not_beat_analytical_frontier(
 
     diagnostics = monte_carlo_result.diagnostics
     comparison = monte_carlo_result.frontier_comparison
+    assert config["monte_carlo"]["dirichlet_alpha"] == pytest.approx(0.1)
     assert diagnostics.generated_portfolios == config["monte_carlo"][
         "number_of_portfolios"
     ]
+    assert diagnostics.maximum_weight > 0.5
     assert np.allclose(
         monte_carlo_result.weights.sum(axis=1).to_numpy(),
         1.0,
@@ -171,6 +173,7 @@ def test_backtest_uses_only_prior_training_data(
     assert backtest_result.diagnostics.no_lookahead_bias
     assert (log["training_end"] < log["holding_start"]).all()
     assert (log["training_rows"] == training_window).all()
+    assert log["shrinkage_intensity"].between(0.0, 1.0).all()
     assert (
         log["holding_start"].iloc[1:].reset_index(drop=True)
         > log["holding_end"].iloc[:-1].reset_index(drop=True)
@@ -217,3 +220,31 @@ def test_performance_summary_covers_strategy_and_benchmarks(
     assert np.isfinite(summary.to_numpy(dtype=float)).all()
     assert (summary["annualized_volatility"] > 0.0).all()
     assert (summary["maximum_drawdown"] <= 0.0).all()
+
+
+def test_performance_table_includes_zero_and_ten_bps_scenarios(
+    config: dict[str, Any],
+    backtest_result: BacktestResult,
+) -> None:
+    """The saved comparison must show gross and cost-adjusted performance."""
+
+    prices, _ = load_price_data(CONFIG_PATH)
+    default_cost = float(config["backtest"]["transaction_cost_bps"])
+    _, summary = build_cost_scenario_results(
+        prices,
+        config,
+        precomputed_backtests={default_cost: backtest_result},
+    )
+    assert set(summary.index.get_level_values("transaction_cost_bps")) == {
+        0.0,
+        10.0,
+    }
+    assert summary.loc[(10.0, "maximum_sharpe"), "cagr"] < summary.loc[
+        (0.0, "maximum_sharpe"), "cagr"
+    ]
+    assert summary.loc[(10.0, "equal_weight"), "cagr"] < summary.loc[
+        (0.0, "equal_weight"), "cagr"
+    ]
+    assert summary.loc[(10.0, "SPY"), "cagr"] == pytest.approx(
+        summary.loc[(0.0, "SPY"), "cagr"]
+    )

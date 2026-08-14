@@ -131,7 +131,7 @@ frontier:
 monte_carlo:
   number_of_portfolios: 25000
   weight_distribution: dirichlet
-  dirichlet_alpha: 1.0
+  dirichlet_alpha: 0.1
   frontier_comparison_tolerance: 1.0e-6
 
 backtest:
@@ -140,7 +140,10 @@ backtest:
   training_window_days: 756
   holding_period_days: 63
   rebalance_frequency: quarterly
-  transaction_cost_bps: 0.0
+  transaction_cost_bps: 10.0
+  cost_scenarios_bps:
+    - 0.0
+    - 10.0
   benchmarks:
     - equal_weight
     - SPY

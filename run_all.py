@@ -10,7 +10,7 @@ from src.backtest import BacktestResult, load_backtest_data
 from src.covariance import CovarianceEstimates, load_covariance_data
 from src.data import DataValidationReport, load_config, load_price_data
 from src.frontier import FrontierResult, trace_efficient_frontier
-from src.metrics import build_performance_summary, save_performance_summary
+from src.metrics import build_cost_scenario_results, save_performance_summary
 from src.montecarlo import MonteCarloResult, run_monte_carlo
 from src.optimize import (
     OptimizationResult,
@@ -74,9 +74,27 @@ def run_pipeline(config_path: str | Path = "config.yaml") -> dict[str, Any]:
 
     print("[6/8] Running the strictly out-of-sample backtest...")
     backtest = load_backtest_data(config_path)
+    print("Ledoit-Wolf shrinkage intensity by rebalance:")
+    for row in backtest.rebalance_log.itertuples(index=False):
+        print(
+            f"  {row.holding_start.date().isoformat()}: "
+            f"{row.shrinkage_intensity:.6f}"
+        )
+    shrinkage = backtest.rebalance_log["shrinkage_intensity"]
+    print(
+        "Ledoit-Wolf shrinkage range: "
+        f"{shrinkage.min():.6f} to {shrinkage.max():.6f}"
+    )
 
     print("[7/8] Calculating and saving performance metrics...")
-    performance_summary = build_performance_summary(backtest, config)
+    default_cost = float(config["backtest"]["transaction_cost_bps"])
+    cost_scenario_backtests, performance_summary = (
+        build_cost_scenario_results(
+            prices,
+            config,
+            precomputed_backtests={default_cost: backtest},
+        )
+    )
     performance_table_path = save_performance_summary(
         performance_summary,
         config,
@@ -98,6 +116,7 @@ def run_pipeline(config_path: str | Path = "config.yaml") -> dict[str, Any]:
         "frontier": frontier,
         "monte_carlo": monte_carlo,
         "backtest": backtest,
+        "cost_scenario_backtests": cost_scenario_backtests,
         "performance_summary": performance_summary,
         "performance_table_path": performance_table_path,
         "figure_paths": figure_paths,
@@ -151,7 +170,12 @@ def _print_completion_summary(results: dict[str, Any]) -> None:
         f"{backtest.diagnostics.out_of_sample_end}, "
         f"no look-ahead bias = {backtest.diagnostics.no_lookahead_bias}"
     )
-    print("\nPerformance summary:")
+    shrinkage = backtest.rebalance_log["shrinkage_intensity"]
+    print(
+        "Walk-forward shrinkage range: "
+        f"{shrinkage.min():.6f} to {shrinkage.max():.6f}"
+    )
+    print("\nPerformance summary by transaction-cost scenario:")
     print(
         results["performance_summary"].to_string(
             float_format=lambda value: f"{value:.6f}"

@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from src.backtest import BacktestResult, load_backtest_data
-from src.data import load_config
+from src.backtest import (
+    BacktestResult,
+    load_backtest_data,
+    run_walk_forward_backtest,
+)
+from src.data import load_config, load_price_data
 
 
 def calculate_cagr(daily_returns: pd.Series, periods_per_year: int) -> float:
@@ -162,6 +167,61 @@ def save_performance_summary(
     return output_path
 
 
+def build_cost_scenario_results(
+    prices: pd.DataFrame,
+    config: dict[str, Any],
+    precomputed_backtests: dict[float, BacktestResult] | None = None,
+) -> tuple[dict[float, BacktestResult], pd.DataFrame]:
+    """Run configured trading-cost scenarios and combine their metrics."""
+
+    configured_scenarios = [
+        float(value) for value in config["backtest"]["cost_scenarios_bps"]
+    ]
+    default_cost = float(config["backtest"]["transaction_cost_bps"])
+    scenarios = list(dict.fromkeys(configured_scenarios))
+    if 0.0 not in scenarios or default_cost not in scenarios:
+        raise ValueError(
+            "Cost scenarios must include both 0 bps and the configured default."
+        )
+    if any(value < 0.0 for value in scenarios):
+        raise ValueError("Trading-cost scenarios cannot be negative.")
+
+    backtests = dict(precomputed_backtests or {})
+    summaries: dict[float, pd.DataFrame] = {}
+    for transaction_cost_bps in scenarios:
+        scenario_config = deepcopy(config)
+        scenario_config["backtest"][
+            "transaction_cost_bps"
+        ] = transaction_cost_bps
+        if transaction_cost_bps not in backtests:
+            backtests[transaction_cost_bps] = run_walk_forward_backtest(
+                prices,
+                scenario_config,
+            )
+        summaries[transaction_cost_bps] = build_performance_summary(
+            backtests[transaction_cost_bps],
+            scenario_config,
+        )
+
+    combined = pd.concat(
+        summaries,
+        names=["transaction_cost_bps", "strategy"],
+    )
+    if not np.isfinite(combined.to_numpy(dtype=float)).all():
+        raise ValueError("Cost-scenario summary contains non-finite values.")
+    return backtests, combined
+
+
+def load_cost_scenario_results(
+    config_path: str | Path = "config.yaml",
+) -> tuple[dict[float, BacktestResult], pd.DataFrame]:
+    """Load real prices and build all configured trading-cost comparisons."""
+
+    config = load_config(config_path)
+    prices, _ = load_price_data(config_path)
+    return build_cost_scenario_results(prices, config)
+
+
 def load_performance_results(
     config_path: str | Path = "config.yaml",
 ) -> tuple[BacktestResult, pd.DataFrame]:
@@ -187,7 +247,9 @@ def main() -> None:
     arguments = parser.parse_args()
 
     config = load_config(arguments.config)
-    backtest, summary = load_performance_results(arguments.config)
+    backtests, summary = load_cost_scenario_results(arguments.config)
+    default_cost = float(config["backtest"]["transaction_cost_bps"])
+    backtest = backtests[default_cost]
     output_path = save_performance_summary(
         summary,
         config,
@@ -203,7 +265,12 @@ def main() -> None:
     print(f"Out-of-sample rows: {diagnostics.out_of_sample_rows}")
     print(f"Rebalances: {diagnostics.rebalance_count}")
     print(f"No look-ahead bias: {diagnostics.no_lookahead_bias}")
-    print("Performance summary:")
+    shrinkage = backtest.rebalance_log["shrinkage_intensity"]
+    print(
+        "Ledoit-Wolf shrinkage range: "
+        f"{shrinkage.min():.6f} to {shrinkage.max():.6f}"
+    )
+    print("Performance summary by transaction-cost scenario:")
     print(summary.to_string(float_format=lambda value: f"{value:.6f}"))
     print(f"Saved table: {output_path}")
 

@@ -242,6 +242,9 @@ def run_walk_forward_backtest(
                 "holding_end": holding_end_date,
                 "training_rows": len(training_returns),
                 "holding_rows": len(holding_returns),
+                "shrinkage_intensity": (
+                    covariance_estimates.shrinkage_intensity
+                ),
                 "solver_iterations": optimized.iterations,
             }
         )
@@ -344,6 +347,17 @@ def main() -> None:
         f"{diagnostics.maximum_training_rows}"
     )
     print(f"No look-ahead bias: {diagnostics.no_lookahead_bias}")
+    print("Ledoit-Wolf shrinkage intensity by rebalance:")
+    for row in result.rebalance_log.itertuples(index=False):
+        print(
+            f"  {row.holding_start.date().isoformat()}: "
+            f"{row.shrinkage_intensity:.6f}"
+        )
+    shrinkage = result.rebalance_log["shrinkage_intensity"]
+    print(
+        "Ledoit-Wolf shrinkage range: "
+        f"{shrinkage.min():.6f} to {shrinkage.max():.6f}"
+    )
     print("Final cumulative returns:")
     print(result.cumulative_returns.iloc[-1].to_string(float_format=lambda x: f"{x:.6f}"))
 

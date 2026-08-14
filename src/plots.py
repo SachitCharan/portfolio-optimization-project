@@ -173,8 +173,9 @@ def plot_cumulative_returns(
             linewidth=plot_config["line_width"],
         )
 
+    transaction_cost_bps = config["backtest"]["transaction_cost_bps"]
     axis.set_title(
-        "Out-of-Sample Growth of $1",
+        f"Out-of-Sample Growth of $1 ({transaction_cost_bps:g} bps Costs)",
         weight="bold",
     )
     axis.set_xlabel("Date")
@@ -223,7 +224,11 @@ def plot_drawdowns(
         )
 
     axis.axhline(0.0, color="#222222", linewidth=0.8)
-    axis.set_title("Out-of-Sample Drawdowns", weight="bold")
+    transaction_cost_bps = config["backtest"]["transaction_cost_bps"]
+    axis.set_title(
+        f"Out-of-Sample Drawdowns ({transaction_cost_bps:g} bps Costs)",
+        weight="bold",
+    )
     axis.set_xlabel("Date")
     axis.set_ylabel("Drawdown from prior peak")
     axis.yaxis.set_major_formatter(PercentFormatter(1.0))
